@@ -1,6 +1,8 @@
 const http = require('http');
 const vm = require('vm');
 
+const port = process.env.PORT || 8080;
+
 const server = http.createServer(function(req, res) {
     const sandbox = {
         r: 'placeholder'
@@ -23,4 +25,4 @@ const server = http.createServer(function(req, res) {
     });
 });
 
-server.listen(8080);
+server.listen(port);
