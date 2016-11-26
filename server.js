@@ -15,11 +15,11 @@ const server = http.createServer(function(req, res) {
         body.push(chunk);
     }).on('end', function() {
         try {
-            var json = JSON.parse(Buffer.concat(body).toString());
+            const json = JSON.parse(Buffer.concat(body).toString());
             console.log('Received code: ' + json.code);
             console.log('Received arguments: ' + json.args);
 
-            var vmCode = 'f = ' + json.code + '; r = f(' + args(json) + ');';
+            const vmCode = 'f = ' + json.code + '; r = f(' + args(json) + ');';
             const result = vm.runInNewContext(vmCode, sandbox);
             console.log('Computed: ' + result);
 
