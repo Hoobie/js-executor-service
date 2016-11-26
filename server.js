@@ -33,6 +33,7 @@ const server = http.createServer(function(req, res) {
     });
 });
 
+console.log("Running on port: ", port);
 server.listen(port);
 
 function args(obj) {
