@@ -19,7 +19,7 @@ const server = http.createServer(function(req, res) {
             console.log('Received code: ' + json.code);
             console.log('Received arguments: ' + json.args);
 
-            const vmCode = 'f = ' + json.code + '; r = f(' + args(json) + ');';
+            const vmCode = 'f = ' + json.code + '; r = f(' + args(json.args) + ');';
             const result = vm.runInNewContext(vmCode, sandbox);
             console.log('Computed: ' + result);
 
@@ -36,10 +36,10 @@ const server = http.createServer(function(req, res) {
 console.log("Running on port: ", port);
 server.listen(port);
 
-function args(obj) {
+function args(a) {
     var arguments = '';
-    for (i = 0; i < obj.args.length; i++) {
-        arguments += (typeof obj.args[i] === 'string' ? '\'' + obj.args[i] + '\'' : obj.args[i]) + ', ';
+    for (i = 0; i < a.length; i++) {
+        arguments += (typeof a[i] === 'string' ? '\'' + a[i] + '\'' : a[i]) + ', ';
     }
     return arguments.substring(0, arguments.length - 2);
 }
