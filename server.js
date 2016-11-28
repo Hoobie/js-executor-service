@@ -39,8 +39,7 @@ server.listen(port);
 function args(obj) {
     var arguments = '';
     for (i = 0; i < obj.args.length; i++) {
-        console.log(obj.args[i]);
-        arguments += obj.args[i] + ', ';
+        arguments += (typeof obj.args[i] === 'string' ? '\'' + obj.args[i] + '\'' : obj.args[i]) + ', ';
     }
     return arguments.substring(0, arguments.length - 2);
 }
