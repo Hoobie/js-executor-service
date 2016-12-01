@@ -20,5 +20,8 @@
   "bugs": {
     "url": "https://github.com/Hoobie/js-executor-service/issues"
   },
-  "homepage": "https://github.com/Hoobie/js-executor-service#readme"
+  "homepage": "https://github.com/Hoobie/js-executor-service#readme",
+  "dependencies": {
+    "tracking": "^1.1.3"
+  }
 }
