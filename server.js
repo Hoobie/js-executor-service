@@ -1,14 +1,14 @@
-const http = require('http');
 const vm = require('vm');
 const fs = require('fs');
+const AWS = require('aws-sdk');
 
-const port = process.env.PORT || 8080;
+const SQS_URL = "https://sqs.eu-west-1.amazonaws.com/131714839949/js-functions";
+exports.SQS_URL = SQS_URL;
 
-const server = http.createServer(function(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'text/json');
+const IDLE_TIMEOUT = 10000;
 
-    var track = createSandbox(['node_modules/tracking/build/tracking.js',
+const main = function() {
+    const track = createSandbox(['node_modules/tracking/build/tracking.js',
         'node_modules/tracking/build/data/eye.js',
         'node_modules/tracking/build/data/face.js',
         'node_modules/tracking/build/data/mouth.js'
@@ -21,12 +21,30 @@ const server = http.createServer(function(req, res) {
         tracking: track
     };
 
-    var body = [];
-    req.on('data', function(chunk) {
-        body.push(chunk);
-    }).on('end', function() {
+    AWS.config.loadFromPath('config/config.json');
+
+    const queue = new AWS.SQS({
+        apiVersion: '2012-11-05',
+        params: {
+            QueueUrl: SQS_URL
+        }
+    });
+
+    queue.receiveMessage(function(err, data) {
+        if (err) {
+            console.error("Error while receiving a message: ", err);
+            main();
+        }
+
+        if (!data.Messages) {
+            console.log("No messages to handle.")
+            setTimeout(main, IDLE_TIMEOUT);
+            return;
+        }
+
         try {
-            const json = Buffer.concat(body).toString();
+            const json = data.Messages[0].Body;
+
             console.log('Received: ' + json.substring(0, 200) + '...');
             const obj = JSON.parse(json);
 
@@ -34,18 +52,22 @@ const server = http.createServer(function(req, res) {
             const result = JSON.stringify(vm.runInNewContext(vmCode, sandbox));
             console.log('Computed: ' + result);
 
-            res.writeHead(200);
-            res.end(result);
+            queue.deleteMessage({
+                ReceiptHandle: data.Messages[0].ReceiptHandle
+            }, function(err, data) {
+                if (err) console.log("Error while deleting a message: ", err);
+                main();
+            });
         } catch (e) {
-            console.error("Error while handling request: ", e);
-            res.writeHead(400);
-            res.end("ERR");
+            console.error("Error while handling a message: ", e);
+            main();
         }
     });
-});
-
-console.log("Running on port: ", port);
-server.listen(port);
+}
+exports.main = main;
+if (require.main === module) {
+    main();
+}
 
 function createSandbox(files, /*optional*/ sandbox) {
     var source, script, result;
