@@ -1,11 +1,7 @@
 const vm = require('vm');
 const fs = require('fs');
 const AWS = require('aws-sdk');
-
-const SQS_URL = "https://sqs.eu-west-1.amazonaws.com/131714839949/js-functions";
-exports.SQS_URL = SQS_URL;
-
-const IDLE_TIMEOUT = 10000;
+const config = require('./config/config.json');
 
 const main = function() {
     const track = createSandbox(['node_modules/tracking/build/tracking.js',
@@ -21,16 +17,16 @@ const main = function() {
         tracking: track
     };
 
-    AWS.config.loadFromPath('config/config.json');
+    AWS.config.loadFromPath('config/aws_config.json');
 
-    const queue = new AWS.SQS({
-        apiVersion: '2012-11-05',
+    const requestsQueue = new AWS.SQS({
+        apiVersion: config.SQS_API_VERSION,
         params: {
-            QueueUrl: SQS_URL
+            QueueUrl: config.REQUESTS_SQS_QUEUE_URL
         }
     });
 
-    queue.receiveMessage(function(err, data) {
+    requestsQueue.receiveMessage(function(err, data) {
         if (err) {
             console.error("Error while receiving a message: ", err);
             main();
@@ -38,12 +34,14 @@ const main = function() {
 
         if (!data.Messages) {
             console.log("No messages to handle.")
-            setTimeout(main, IDLE_TIMEOUT);
+            setTimeout(main, config.IDLE_TIMEOUT);
             return;
         }
 
         try {
             const json = data.Messages[0].Body;
+            const requestHandle = data.Messages[0].ReceiptHandle;
+            const requestId = data.Messages[0].MessageId;
 
             console.log('Received: ' + json.substring(0, 200) + '...');
             const obj = JSON.parse(json);
@@ -52,11 +50,32 @@ const main = function() {
             const result = JSON.stringify(vm.runInNewContext(vmCode, sandbox));
             console.log('Computed: ' + result);
 
-            queue.deleteMessage({
-                ReceiptHandle: data.Messages[0].ReceiptHandle
+            var responsesQueue = new AWS.SQS({
+                apiVersion: config.SQS_API_VERSION,
+                params: {
+                    QueueUrl: config.RESPONSES_SQS_QUEUE_URL
+                }
+            });
+            responsesQueue.sendMessage({
+                MessageAttributes: {
+                    "requestId": {
+                        DataType: "String",
+                        StringValue: requestId
+                    }
+                },
+                MessageBody: result
             }, function(err, data) {
-                if (err) console.log("Error while deleting a message: ", err);
-                main();
+                if (err) {
+                    console.log("Error while sending a response: ", err);
+                    main();
+                }
+
+                requestsQueue.deleteMessage({
+                    ReceiptHandle: requestHandle
+                }, function(err, data) {
+                    if (err) console.log("Error while deleting a message: ", err);
+                    main();
+                });
             });
         } catch (e) {
             console.error("Error while handling a message: ", e);
