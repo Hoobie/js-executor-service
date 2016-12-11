@@ -32,12 +32,12 @@ describe('server', function() {
         server.main();
         setTimeout(function() {
             // then
-            checkResponse(done);
+            checkResponse(msgId, done);
         }, 5000);
     });
 });
 
-function checkResponse(callback) {
+function checkResponse(msgId, callback) {
     var responsesQueue = new AWS.SQS({
         apiVersion: config.SQS_API_VERSION,
         params: {
@@ -60,7 +60,7 @@ function checkResponse(callback) {
                 callback();
             });
         } else {
-            checkResponse(callback);
+            checkResponse(msgId, callback);
         }
     });
 }
