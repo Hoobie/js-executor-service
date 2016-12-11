@@ -32,32 +32,38 @@ describe('server', function() {
         server.main();
         setTimeout(function() {
             // then
-            var responsesQueue = new AWS.SQS({
-                apiVersion: config.SQS_API_VERSION,
-                params: {
-                    QueueUrl: config.RESPONSES_SQS_QUEUE_URL
-                }
-            });
-            responsesQueue.receiveMessage({
-                MessageAttributeNames: [
-                    "All"
-                ]
-            }, function(err, data) {
-                var msg = data.Messages[0];
-                if (msg.MessageAttributes.requestId.StringValue == msgId) {
-                    assert.equal(msg.Body, 2);
-
-                    responsesQueue.deleteMessage({
-                        ReceiptHandle: msg.ReceiptHandle
-                    }, function(err, data) {
-                        if (err) done(err);
-                        done();
-                    });
-                }
-            });
+            checkResponse(done);
         }, 5000);
     });
 });
+
+function checkResponse(callback) {
+    var responsesQueue = new AWS.SQS({
+        apiVersion: config.SQS_API_VERSION,
+        params: {
+            QueueUrl: config.RESPONSES_SQS_QUEUE_URL
+        }
+    });
+    responsesQueue.receiveMessage({
+        MessageAttributeNames: [
+            "All"
+        ]
+    }, function(err, data) {
+        var msg = data.Messages[0];
+        if (msg.MessageAttributes.requestId.StringValue == msgId) {
+            assert.equal(msg.Body, 2);
+
+            responsesQueue.deleteMessage({
+                ReceiptHandle: msg.ReceiptHandle
+            }, function(err, data) {
+                if (err) callback(err);
+                callback();
+            });
+        } else {
+            checkResponse(callback);
+        }
+    });
+}
 
 function test(arg) {
     return arg + 1;
