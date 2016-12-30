@@ -9,6 +9,7 @@ describe('server', function() {
     it('should handle message', function(done) {
         // given
         AWS.config.loadFromPath('config/aws_config.json');
+
         var requestsQueue = new AWS.SQS({
             apiVersion: config.SQS_API_VERSION,
             params: {
@@ -21,19 +22,19 @@ describe('server', function() {
             args: [1]
         }
         var msgId;
+
+        // when
         requestsQueue.sendMessage({
             MessageBody: JSON.stringify(fun)
         }, function(err, data) {
             if (err) done(err);
-            msgId = data.MessageId;
-        });
 
-        // when
-        server.main();
-        setTimeout(function() {
+            msgId = data.MessageId;
+            server.main();
+
             // then
             checkResponse(msgId, done);
-        }, 5000);
+        });
     });
 });
 
@@ -44,11 +45,15 @@ function checkResponse(msgId, callback) {
             QueueUrl: config.RESPONSES_SQS_QUEUE_URL
         }
     });
+
     responsesQueue.receiveMessage({
         MessageAttributeNames: [
             "All"
-        ]
+        ],
+        WaitTimeSeconds: 20
     }, function(err, data) {
+        if (err) callback(err);
+
         var msg = data.Messages[0];
         if (msg.MessageAttributes.requestId.StringValue == msgId) {
             assert.equal(msg.Body, 2);
