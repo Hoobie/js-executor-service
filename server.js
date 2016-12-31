@@ -1,14 +1,10 @@
-const http = require('http');
 const vm = require('vm');
 const fs = require('fs');
+const AWS = require('aws-sdk');
+const config = require('./config/config.json');
 
-const port = process.env.PORT || 8080;
-
-const server = http.createServer(function(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'text/json');
-
-    var track = createSandbox(['node_modules/tracking/build/tracking.js',
+const main = function() {
+    const track = createSandbox(['node_modules/tracking/build/tracking.js',
         'node_modules/tracking/build/data/eye.js',
         'node_modules/tracking/build/data/face.js',
         'node_modules/tracking/build/data/mouth.js'
@@ -21,12 +17,32 @@ const server = http.createServer(function(req, res) {
         tracking: track
     };
 
-    var body = [];
-    req.on('data', function(chunk) {
-        body.push(chunk);
-    }).on('end', function() {
+    AWS.config.loadFromPath('config/aws_config.json');
+
+    const requestsQueue = new AWS.SQS({
+        apiVersion: config.SQS_API_VERSION,
+        params: {
+            QueueUrl: config.REQUESTS_SQS_QUEUE_URL
+        }
+    });
+
+    requestsQueue.receiveMessage(function(err, data) {
+        if (err) {
+            console.error("Error while receiving a message: ", err);
+            main();
+        }
+
+        if (!data.Messages) {
+            console.log("No messages to handle.")
+            setTimeout(main, config.IDLE_TIMEOUT);
+            return;
+        }
+
         try {
-            const json = Buffer.concat(body).toString();
+            const json = data.Messages[0].Body;
+            const requestHandle = data.Messages[0].ReceiptHandle;
+            const requestId = data.Messages[0].MessageId;
+
             console.log('Received: ' + json.substring(0, 200) + '...');
             const obj = JSON.parse(json);
 
@@ -34,18 +50,43 @@ const server = http.createServer(function(req, res) {
             const result = JSON.stringify(vm.runInNewContext(vmCode, sandbox));
             console.log('Computed: ' + result);
 
-            res.writeHead(200);
-            res.end(result);
+            var responsesQueue = new AWS.SQS({
+                apiVersion: config.SQS_API_VERSION,
+                params: {
+                    QueueUrl: config.RESPONSES_SQS_QUEUE_URL
+                }
+            });
+            responsesQueue.sendMessage({
+                MessageAttributes: {
+                    "requestId": {
+                        DataType: "String",
+                        StringValue: requestId
+                    }
+                },
+                MessageBody: result
+            }, function(err, data) {
+                if (err) {
+                    console.log("Error while sending a response: ", err);
+                    main();
+                }
+
+                requestsQueue.deleteMessage({
+                    ReceiptHandle: requestHandle
+                }, function(err, data) {
+                    if (err) console.log("Error while deleting a message: ", err);
+                    main();
+                });
+            });
         } catch (e) {
-            console.error("Error while handling request: ", e);
-            res.writeHead(400);
-            res.end("ERR");
+            console.error("Error while handling a message: ", e);
+            main();
         }
     });
-});
-
-console.log("Running on port: ", port);
-server.listen(port);
+}
+exports.main = main;
+if (require.main === module) {
+    main();
+}
 
 function createSandbox(files, /*optional*/ sandbox) {
     var source, script, result;
