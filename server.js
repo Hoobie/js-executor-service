@@ -14,11 +14,13 @@ const main = function(callback) {
         if (err) {
             console.error("Error while receiving a message: ", err);
             callback(err);
+            return;
         }
 
         if (!data.Messages) {
             console.log("No messages to handle.")
             callback(null);
+            return;
         }
 
         try {
@@ -51,6 +53,7 @@ const main = function(callback) {
                 if (err) {
                     console.log("Error while sending a response: ", err);
                     callback(err);
+                    return;
                 }
 
                 requestsQueue.deleteMessage({
