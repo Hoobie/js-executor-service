@@ -1,41 +1,24 @@
 const vm = require('vm');
-const fs = require('fs');
 const AWS = require('aws-sdk');
-const config = require('./config/config.json');
 
-const main = function() {
-    const track = createSandbox(['node_modules/tracking/build/tracking.js',
-        'node_modules/tracking/build/data/eye.js',
-        'node_modules/tracking/build/data/face.js',
-        'node_modules/tracking/build/data/mouth.js'
-    ], {
-        navigator: {},
-        tracking: {},
-        window: {}
-    }).tracking;
-    const sandbox = {
-        tracking: track
-    };
-
-    AWS.config.loadFromPath('config/aws_config.json');
+const main = function(callback) {
 
     const requestsQueue = new AWS.SQS({
-        apiVersion: config.SQS_API_VERSION,
+        apiVersion: process.env.SQS_API_VERSION,
         params: {
-            QueueUrl: config.REQUESTS_SQS_QUEUE_URL
+            QueueUrl: process.env.REQUESTS_SQS_QUEUE_URL
         }
     });
 
     requestsQueue.receiveMessage(function(err, data) {
         if (err) {
             console.error("Error while receiving a message: ", err);
-            main();
+            callback(err);
         }
 
         if (!data.Messages) {
             console.log("No messages to handle.")
-            setTimeout(main, config.IDLE_TIMEOUT);
-            return;
+            callback(null);
         }
 
         try {
@@ -51,9 +34,9 @@ const main = function() {
             console.log('Computed: ' + result);
 
             var responsesQueue = new AWS.SQS({
-                apiVersion: config.SQS_API_VERSION,
+                apiVersion: process.env.SQS_API_VERSION,
                 params: {
-                    QueueUrl: config.RESPONSES_SQS_QUEUE_URL
+                    QueueUrl: process.env.RESPONSES_SQS_QUEUE_URL
                 }
             });
             responsesQueue.sendMessage({
@@ -67,25 +50,21 @@ const main = function() {
             }, function(err, data) {
                 if (err) {
                     console.log("Error while sending a response: ", err);
-                    main();
+                    callback(err);
                 }
 
                 requestsQueue.deleteMessage({
                     ReceiptHandle: requestHandle
                 }, function(err, data) {
                     if (err) console.log("Error while deleting a message: ", err);
-                    main();
+                    callback(null, "Success");
                 });
             });
         } catch (e) {
             console.error("Error while handling a message: ", e);
-            main();
+            callback(e);
         }
     });
-}
-exports.main = main;
-if (require.main === module) {
-    main();
 }
 
 function createSandbox(files, /*optional*/ sandbox) {
@@ -114,3 +93,7 @@ function args(a) {
     }
     return arguments;
 }
+
+exports.handler = function(event, context, callback) {
+       main(callback);
+};
