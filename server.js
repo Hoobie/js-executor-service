@@ -1,6 +1,6 @@
 const vm = require('vm');
 const fs = require('fs');
-const AWS = require('aws-sdk');
+const redis = require("redis");
 const config = require('./config/config.json');
 
 const main = function() {
@@ -17,66 +17,30 @@ const main = function() {
         tracking: track
     };
 
-    AWS.config.loadFromPath('config/aws_config.json');
-
-    const requestsQueue = new AWS.SQS({
-        apiVersion: config.SQS_API_VERSION,
-        params: {
-            QueueUrl: config.REQUESTS_SQS_QUEUE_URL
-        }
+    const redisClient = redis.createClient(6379, "redis");
+    redisClient.on("error", function(err) {
+        console.log("Error " + err);
+        main();
     });
 
-    requestsQueue.receiveMessage(function(err, data) {
-        if (err) {
-            console.error("Error while receiving a message: ", err);
-            main();
-        }
-
-        if (!data.Messages) {
+    redisClient.brpop("requests", 5, function (err, reply) {
+        if (!reply) {
             console.log("No messages to handle.")
             setTimeout(main, config.IDLE_TIMEOUT);
             return;
         }
 
         try {
-            const json = data.Messages[0].Body;
-            const requestHandle = data.Messages[0].ReceiptHandle;
-            const requestId = data.Messages[0].MessageId;
-
-            console.log('Received: ' + json.substring(0, 200) + '...');
-            const obj = JSON.parse(json);
+            console.log('Received: ' + JSON.stringify(reply).substring(0, 200) + '...');
+            const obj = JSON.parse(reply[1]);
+            const id = obj.id;
 
             const vmCode = 'f = ' + obj.code + '; f(' + args(obj.args) + ');';
             const result = JSON.stringify(vm.runInNewContext(vmCode, sandbox));
             console.log('Computed: ' + result);
+            redisClient.lpush(id, result);
 
-            var responsesQueue = new AWS.SQS({
-                apiVersion: config.SQS_API_VERSION,
-                params: {
-                    QueueUrl: config.RESPONSES_SQS_QUEUE_URL
-                }
-            });
-            responsesQueue.sendMessage({
-                MessageAttributes: {
-                    "requestId": {
-                        DataType: "String",
-                        StringValue: requestId
-                    }
-                },
-                MessageBody: result
-            }, function(err, data) {
-                if (err) {
-                    console.log("Error while sending a response: ", err);
-                    main();
-                }
-
-                requestsQueue.deleteMessage({
-                    ReceiptHandle: requestHandle
-                }, function(err, data) {
-                    if (err) console.log("Error while deleting a message: ", err);
-                    main();
-                });
-            });
+            main();
         } catch (e) {
             console.error("Error while handling a message: ", e);
             main();
