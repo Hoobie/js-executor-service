@@ -1,0 +1,17 @@
+version: '2'
+services:
+  node:
+    build: .
+    links:
+      - 'logstash'
+      - 'metricbeat'
+
+  logstash:
+    build: ./docker/logstash/
+
+  metricbeat:
+    image: athieriot/metricbeat:5.1.2
+    pid: host
+    volumes:
+      - ./docker/metricbeat/metricbeat.yml:/metricbeat/metricbeat.yml
+      - /var/run/docker.sock:/var/run/docker.sock

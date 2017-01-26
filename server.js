@@ -3,6 +3,30 @@ const fs = require('fs');
 const AWS = require('aws-sdk');
 const config = require('./config/config.json');
 
+const log4js = require('log4js');
+log4js.configure({
+    "appenders": [{
+            "category": "logstash-logger",
+            "type": "log4js-logstash",
+            "host": "logstash",
+            "port": 5959,
+            "fields": {
+                "source": "js-executor-service",
+                "environment": "development"
+            }
+        },
+        {
+            "category": "logstash-logger",
+            "type": "console"
+        }
+    ],
+    "levels": {
+        "logstash-logger": "INFO"
+    }
+});
+
+const logger = log4js.getLogger('logstash-logger');
+
 const main = function() {
     const track = createSandbox(['node_modules/tracking/build/tracking.js',
         'node_modules/tracking/build/data/eye.js',
@@ -28,12 +52,12 @@ const main = function() {
 
     requestsQueue.receiveMessage(function(err, data) {
         if (err) {
-            console.error("Error while receiving a message: ", err);
+            logger.error("Error while receiving a message: ", err);
             main();
         }
 
         if (!data.Messages) {
-            console.log("No messages to handle.")
+            logger.info("No messages to handle.")
             setTimeout(main, config.IDLE_TIMEOUT);
             return;
         }
@@ -43,12 +67,12 @@ const main = function() {
             const requestHandle = data.Messages[0].ReceiptHandle;
             const requestId = data.Messages[0].MessageId;
 
-            console.log('Received: ' + json.substring(0, 200) + '...');
+            logger.info('Received: ' + json.substring(0, 200) + '...');
             const obj = JSON.parse(json);
 
             const vmCode = 'f = ' + obj.code + '; f(' + args(obj.args) + ');';
             const result = JSON.stringify(vm.runInNewContext(vmCode, sandbox));
-            console.log('Computed: ' + result);
+            logger.info('Computed: ' + result);
 
             var responsesQueue = new AWS.SQS({
                 apiVersion: config.SQS_API_VERSION,
@@ -66,19 +90,19 @@ const main = function() {
                 MessageBody: result
             }, function(err, data) {
                 if (err) {
-                    console.log("Error while sending a response: ", err);
+                    logger.info("Error while sending a response: ", err);
                     main();
                 }
 
                 requestsQueue.deleteMessage({
                     ReceiptHandle: requestHandle
                 }, function(err, data) {
-                    if (err) console.log("Error while deleting a message: ", err);
+                    if (err) logger.error("Error while deleting a message: ", err);
                     main();
                 });
             });
         } catch (e) {
-            console.error("Error while handling a message: ", e);
+            logger.error("Error while handling a message: ", e);
             main();
         }
     });

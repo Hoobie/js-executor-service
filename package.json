@@ -23,6 +23,8 @@
   "homepage": "https://github.com/Hoobie/js-executor-service#readme",
   "dependencies": {
     "aws-sdk": "^2.7.13",
+    "log4js": "^1.1.0",
+    "log4js-logstash": "^0.2.3",
     "tracking": "^1.1.3"
   },
   "devDependencies": {
