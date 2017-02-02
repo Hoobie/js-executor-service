@@ -23,7 +23,7 @@ const main = function() {
         main();
     });
 
-    redisClient.brpop("requests", 5, function (err, reply) {
+    redisClient.brpop("requests", 5, function(err, reply) {
         if (!reply) {
             console.log("No messages to handle.")
             setTimeout(main, config.IDLE_TIMEOUT);

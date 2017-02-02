@@ -1,74 +1,39 @@
 const server = require('../server');
 const config = require('../config/config.json');
-const AWS = require('aws-sdk');
+const redis = require('redis');
 const assert = require('assert');
 
 describe('server', function() {
-    this.timeout(20000);
+    this.timeout(15000);
 
     it('should handle message', function(done) {
         // given
-        AWS.config.loadFromPath('config/aws_config.json');
-
-        var requestsQueue = new AWS.SQS({
-            apiVersion: config.SQS_API_VERSION,
-            params: {
-                QueueUrl: config.REQUESTS_SQS_QUEUE_URL
-            }
+        const redisClient = redis.createClient(6379, "localhost");
+        redisClient.on("error", function(err) {
+            done(err);
         });
 
-        var fun = {
+        const id = Date.now();
+        const fun = {
+            id: id,
             code: test.toString(),
             args: [1]
-        }
-        var msgId;
+        };
 
         // when
-        requestsQueue.sendMessage({
-            MessageBody: JSON.stringify(fun)
-        }, function(err, data) {
-            if (err) done(err);
+        redisClient.lpush("requests", JSON.stringify(fun));
 
-            msgId = data.MessageId;
-            server.main();
+        // then
+        redisClient.brpop(id, 10, function(err, data) {
+            if (err) {
+                done(err);
+            }
 
-            // then
-            checkResponse(msgId, done);
+            assert.equal(JSON.parse(data[1]), 2);
+            done();
         });
     });
 });
-
-function checkResponse(msgId, callback) {
-    var responsesQueue = new AWS.SQS({
-        apiVersion: config.SQS_API_VERSION,
-        params: {
-            QueueUrl: config.RESPONSES_SQS_QUEUE_URL
-        }
-    });
-
-    responsesQueue.receiveMessage({
-        MessageAttributeNames: [
-            "All"
-        ],
-        WaitTimeSeconds: 20
-    }, function(err, data) {
-        if (err) callback(err);
-
-        var msg = data.Messages[0];
-        if (msg.MessageAttributes.requestId.StringValue == msgId) {
-            assert.equal(msg.Body, 2);
-
-            responsesQueue.deleteMessage({
-                ReceiptHandle: msg.ReceiptHandle
-            }, function(err, data) {
-                if (err) callback(err);
-                callback();
-            });
-        } else {
-            checkResponse(msgId, callback);
-        }
-    });
-}
 
 function test(arg) {
     return arg + 1;
