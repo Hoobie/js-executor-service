@@ -1,0 +1,16 @@
+version: '2'
+services:
+  node:
+    build: .
+    links:
+      - 'webdis'
+
+  webdis:
+    image: 'anapsix/webdis'
+    ports:
+      - '7379:7379'
+    links:
+      - 'redis'
+
+  redis:
+    image: 'redis:alpine'
