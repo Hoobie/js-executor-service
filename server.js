@@ -30,6 +30,7 @@ global.callback = function(result) {
     });
     cache = null;
 
+    console.timeEnd("Run");
     console.log("Computed: " + serialized);
     redisClient.lpush(id, serialized);
 };
@@ -48,13 +49,18 @@ const main = function() {
         }
 
         try {
-            console.log('Received: ' + JSON.stringify(reply).substring(0, 200) + '...');
             const obj = JSON.parse(reply[1]);
             global.id = obj.id;
+            console.log('Received: ' + JSON.stringify(obj.code).substring(0, 200) + '...');
 
+            console.time("Compile");
             const script = new vm.Script('f = ' + obj.code + '; f(' + args(obj.args) + ');');
+            console.timeEnd("Compile");
+            console.time("Run");
             const result = JSON.stringify(script.runInThisContext());
+            // const result = JSON.stringify(eval('f = ' + obj.code + '; f(' + args(obj.args) + ');'));
             if (!obj.withCallback) {
+                console.timeEnd("Run");
                 console.log('Computed: ' + result);
                 redisClient.lpush(id, result);
             }
