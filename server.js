@@ -1,7 +1,6 @@
 const vm = require('vm');
 const fs = require('fs');
 const redis = require("redis");
-const config = require('./config/config.json');
 
 global.tracking = createLibrarySandbox([
     'node_modules/tracking/build/tracking.js',
@@ -44,7 +43,6 @@ const main = function() {
     redisClient.brpop("requests", 5, function(err, reply) {
         if (!reply) {
             console.log("No messages to handle.")
-            // setTimeout(main, config.IDLE_TIMEOUT);
             main();
             return;
         }
