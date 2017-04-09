@@ -23,6 +23,7 @@
   "homepage": "https://github.com/Hoobie/js-executor-service#readme",
   "dependencies": {
     "redis": "^2.6.3",
+    "tesseract.js": "^1.0.10",
     "tracking": "^1.1.3"
   },
   "devDependencies": {

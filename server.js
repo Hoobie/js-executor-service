@@ -3,21 +3,39 @@ const fs = require('fs');
 const redis = require("redis");
 const config = require('./config/config.json');
 
-const main = function() {
-    const track = createSandbox(['node_modules/tracking/build/tracking.js',
-        'node_modules/tracking/build/data/eye.js',
-        'node_modules/tracking/build/data/face.js',
-        'node_modules/tracking/build/data/mouth.js'
-    ], {
-        navigator: {},
-        tracking: {},
-        window: {}
-    }).tracking;
-    const sandbox = {
-        tracking: track
-    };
+global.tracking = createLibrarySandbox([
+    'node_modules/tracking/build/tracking.js',
+    'node_modules/tracking/build/data/eye.js',
+    'node_modules/tracking/build/data/face.js',
+    'node_modules/tracking/build/data/mouth.js'
+], {
+    window: {},
+    navigator: {},
+    tracking: {}
+}).tracking;
 
-    const redisClient = redis.createClient(6379, "redis");
+global.Tesseract = require('tesseract.js');
+
+global.redisClient = redis.createClient(6379, "redis");
+global.id = 0;
+global.callback = function(result) {
+    var cache = [];
+    var serialized = JSON.stringify(result, function(key, value) {
+        if (typeof value === 'object' && value !== null) {
+            if (cache.indexOf(value) !== -1) {
+                return;
+            }
+            cache.push(value);
+        }
+        return value;
+    });
+    cache = null;
+
+    console.log("Computed: " + serialized);
+    redisClient.lpush(id, serialized);
+};
+
+const main = function() {
     redisClient.on("error", function(err) {
         console.log("Error " + err);
         main();
@@ -26,19 +44,22 @@ const main = function() {
     redisClient.brpop("requests", 5, function(err, reply) {
         if (!reply) {
             console.log("No messages to handle.")
-            setTimeout(main, config.IDLE_TIMEOUT);
+            // setTimeout(main, config.IDLE_TIMEOUT);
+            main();
             return;
         }
 
         try {
             console.log('Received: ' + JSON.stringify(reply).substring(0, 200) + '...');
             const obj = JSON.parse(reply[1]);
-            const id = obj.id;
+            global.id = obj.id;
 
-            const vmCode = 'f = ' + obj.code + '; f(' + args(obj.args) + ');';
-            const result = JSON.stringify(vm.runInNewContext(vmCode, sandbox));
-            console.log('Computed: ' + result);
-            redisClient.lpush(id, result);
+            const script = new vm.Script('f = ' + obj.code + '; f(' + args(obj.args) + ');');
+            const result = JSON.stringify(script.runInThisContext());
+            if (!obj.withCallback) {
+                console.log('Computed: ' + result);
+                redisClient.lpush(id, result);
+            }
 
             main();
         } catch (e) {
@@ -52,7 +73,7 @@ if (require.main === module) {
     main();
 }
 
-function createSandbox(files, /*optional*/ sandbox) {
+function createLibrarySandbox(files, sandbox) {
     var source, script, result;
     if (!(files instanceof Array)) {
         files = [files];
@@ -60,9 +81,6 @@ function createSandbox(files, /*optional*/ sandbox) {
     source = files.map(function(file) {
         return fs.readFileSync(file, 'utf8');
     }).join('');
-    if (!sandbox) {
-        sandbox = {};
-    }
     script = new vm.Script(source);
     result = script.runInNewContext(sandbox);
     return sandbox;
