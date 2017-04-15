@@ -2,6 +2,8 @@ const vm = require('vm');
 const fs = require('fs');
 const redis = require("redis");
 
+global.atob = require("atob");
+
 global.tracking = createLibrarySandbox([
     'node_modules/tracking/build/tracking.js',
     'node_modules/tracking/build/data/eye.js',
@@ -49,7 +51,7 @@ const main = function() {
         }
 
         try {
-            const obj = JSON.parse(reply[1]);
+            const obj = JSON.parse(decodeURIComponent(reply[1]));
             global.id = obj.id;
             console.log('Received: ' + JSON.stringify(obj.code).substring(0, 200) + '...');
 
@@ -92,8 +94,8 @@ function createLibrarySandbox(files, sandbox) {
 
 function args(a) {
     var arguments = '';
-    for (i = 0; i < a.length; i++) {
-        if (typeof a[i] === 'string') arguments += '\'' + a[i] + '\''
+    for (var i = 0; i < a.length; i++) {
+        if (typeof a[i] === 'string') arguments += '\"' + a[i] + '\"'
         else arguments += JSON.stringify(a[i]);
 
         if (i < a.length - 1) arguments += ', ';
