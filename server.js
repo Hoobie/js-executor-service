@@ -55,14 +55,14 @@ global.main = function() {
       console.time("Compile");
       const script = new vm.Script('f = ' + obj.code + '; f(' + args(obj.args) + ');', {
         displayErrors: true,
-        timeout: 500
+        timeout: 500000
       });
       console.timeEnd("Compile");
       console.time("Run");
-      const result = JSON.stringify(script.runInThisContext(), {
+      const result = JSON.stringify(script.runInThisContext({
         displayErrors: true,
-        timeout: 500
-      });
+        timeout: 500000
+      }));
       // const result = JSON.stringify(eval('f = ' + obj.code + '; f(' + args(obj.args) + ');'));
       if (!obj.withCallback) {
         console.timeEnd("Run");
