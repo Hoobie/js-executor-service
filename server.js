@@ -2,9 +2,9 @@ const vm = require('vm');
 const fs = require('fs');
 const redis = require("redis");
 
-const atob = require("atob");
+global.atob = require("atob");
 
-const tracking = createLibrarySandbox([
+global.tracking = createLibrarySandbox([
   'node_modules/tracking/build/tracking.js',
   'node_modules/tracking/build/data/eye.js',
   'node_modules/tracking/build/data/face.js',
@@ -15,11 +15,11 @@ const tracking = createLibrarySandbox([
   tracking: {}
 }).tracking;
 
-const Tesseract = require('tesseract.js');
+global.Tesseract = require('tesseract.js');
 
-const redisClient = redis.createClient(6379, "redis");
-
-const callback = function(result) {
+global.redisClient = redis.createClient(6379, "redis");
+global.id = 0;
+global.callback = function(result) {
   var cache = [];
   var serialized = JSON.stringify(result, function(key, value) {
     if (typeof value === 'object' && value !== null) {
@@ -35,11 +35,10 @@ const callback = function(result) {
   console.timeEnd("Run");
   console.log("Computed: " + serialized);
   redisClient.lpush(id, serialized);
+  main();
 };
 
-var id = 0;
-
-const main = function() {
+global.main = function() {
   redisClient.brpop("requests", 5, function(err, reply) {
     if (!reply) {
       console.log("No messages to handle.")
@@ -49,37 +48,22 @@ const main = function() {
 
     try {
       const obj = JSON.parse(decodeURIComponent(reply[1]));
-      id = obj.id;
+      global.id = obj.id;
       console.log('Received: ' + JSON.stringify(obj.code).substring(0, 200) + '...');
+      // fs.writeFile("./data/args" + global.id, obj.args, function(err) {});
 
       console.time("Compile");
-      const script = new vm.Script('f = ' + obj.code + '; f(' + args(obj.args) + ');', {
-        displayErrors: true
-      });
+      const script = new vm.Script('f = ' + obj.code + '; f(' + args(obj.args) + ');');
       console.timeEnd("Compile");
       console.time("Run");
-      const ctx = {
-        id: id,
-        atob: atob,
-        console: console,
-        setInterval: setInterval,
-        clearInterval: clearInterval,
-        redisClient: redisClient,
-        callback: callback,
-        tracking: tracking,
-        Tesseract: Tesseract
-      }
-      const result = JSON.stringify(script.runInNewContext(ctx, {
-        displayErrors: true
-      }));
+      const result = JSON.stringify(script.runInThisContext());
       // const result = JSON.stringify(eval('f = ' + obj.code + '; f(' + args(obj.args) + ');'));
       if (!obj.withCallback) {
         console.timeEnd("Run");
         console.log('Computed: ' + result);
         redisClient.lpush(id, result);
+        main();
       }
-
-      main();
     } catch (e) {
       console.error("Error while handling a message: ", e);
       main();

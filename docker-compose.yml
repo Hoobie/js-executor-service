@@ -2,6 +2,8 @@ version: '2'
 services:
   node:
     build: .
+    volumes:
+      - ./data:/usr/src/app/data
     links:
       - 'webdis'
 
