@@ -53,10 +53,16 @@ global.main = function() {
       // fs.writeFile("./data/args" + global.id, obj.args, function(err) {});
 
       console.time("Compile");
-      const script = new vm.Script('f = ' + obj.code + '; f(' + args(obj.args) + ');');
+      const script = new vm.Script('f = ' + obj.code + '; f(' + args(obj.args) + ');', {
+        displayErrors: true,
+        timeout: 500
+      });
       console.timeEnd("Compile");
       console.time("Run");
-      const result = JSON.stringify(script.runInThisContext());
+      const result = JSON.stringify(script.runInThisContext(), {
+        displayErrors: true,
+        timeout: 500
+      });
       // const result = JSON.stringify(eval('f = ' + obj.code + '; f(' + args(obj.args) + ');'));
       if (!obj.withCallback) {
         console.timeEnd("Run");
@@ -66,6 +72,7 @@ global.main = function() {
       }
     } catch (e) {
       console.error("Error while handling a message: ", e);
+      redisClient.lpush(id, "error");
       main();
     }
   });
