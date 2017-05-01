@@ -4,6 +4,9 @@ const redis = require("redis");
 
 global.atob = require("atob");
 
+global.Canvas = require("canvas");
+global.Image = Canvas.Image;
+
 global.tracking = createLibrarySandbox([
   'node_modules/tracking/build/tracking.js',
   'node_modules/tracking/build/data/eye.js',
@@ -33,7 +36,7 @@ global.callback = function(result) {
   cache = null;
 
   console.timeEnd("Run");
-  console.log("Computed: " + serialized);
+  console.log("Computed: " + serialized.substring(0, 100) + '...');
   redisClient.lpush(id, serialized);
   main();
 };
@@ -66,7 +69,7 @@ global.main = function() {
       // const result = JSON.stringify(eval('f = ' + obj.code + '; f(' + args(obj.args) + ');'));
       if (!obj.withCallback) {
         console.timeEnd("Run");
-        console.log('Computed: ' + result);
+        console.log('Computed: ' + result.substring(0, 100) + '...');
         redisClient.lpush(id, result);
         main();
       }

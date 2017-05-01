@@ -1,4 +1,14 @@
-FROM node:6-alpine
+FROM node:6.10-alpine
+
+# Install canvas dependencies
+RUN apk add --no-cache \
+  build-base \
+  g++ \
+  cairo-dev \
+  libjpeg-turbo-dev \
+  libpng-dev \
+  pango-dev \
+  giflib-dev
 
 # Create app directory
 RUN mkdir -p /usr/src/app
