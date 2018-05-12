@@ -8,5 +8,11 @@ A service that evaluates JavaScript code.
 # How to use
 See the test: https://github.com/Hoobie/js-executor-service/blob/master/test/test.js
 
+# Supported libraries
+- Tesseract.js
+- Tracking.js
+- canvas
+- atob
+
 # Continuous Integration
 [![Build Status](https://travis-ci.org/Hoobie/js-executor-service.svg)](https://travis-ci.org/Hoobie/js-executor-service)
